@@ -125,6 +125,7 @@ GEM
     thread_safe (0.3.6)
     tzinfo (1.2.9)
       thread_safe (~> 0.1)
+    u2f (1.0.0)
     uglifier (4.2.0)
       execjs (>= 0.3.0, < 3)
     web-console (3.7.0)
@@ -148,6 +149,7 @@ DEPENDENCIES
   rails (~> 5.2.3)
   sqlite3
   tzinfo-data
+  u2f
   uglifier (>= 1.3.0)
   web-console (>= 3.3.0)
 
