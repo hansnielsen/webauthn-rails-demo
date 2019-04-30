@@ -1,2 +1,12 @@
-<h1>TwoFactor#index</h1>
-<p>Find me in app/views/two_factor/index.html.erb</p>
+<h2>Security Keys</h2>
+<%= link_to "Register a new key (U2F)", action: "new" %> | <%= link_to "Authenticate with an existing key (U2F)", action: "sign" %>
+<% if @regs.count > 0 %>
+  <ul>
+  <% @regs.each do |r| %>
+  <li>Key ID <%= r.id %> (<%= r.name %>)
+  | <%= link_to "delete", two_factor_path(r), method: :delete, data: { confirm: "You sure?" } %>
+  <% end %>
+  </ul>
+<% else %>
+  <p>You don't have any keys registered!</p>
+<% end %>
