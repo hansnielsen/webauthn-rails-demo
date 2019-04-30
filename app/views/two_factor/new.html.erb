@@ -1,2 +1,38 @@
-<h1>TwoFactor#new</h1>
-<p>Find me in app/views/two_factor/new.html.erb</p>
+<h2>Register a new security key</h2>
+<p>Insert or tap your key now!</p>
+<%= form_tag(controller: "two_factor", action: "create") do %>
+  <%= hidden_field_tag("response") %>
+<% end %>
+
+<script>
+// render requests from server into Javascript format
+var appId = <%= @app_id.to_json.html_safe %>
+var registerRequests = <%= @registration_requests.to_json.html_safe %>;
+var signRequests = <%= @sign_requests.as_json.to_json.html_safe %>;
+
+function do_register() {
+  u2f.register(appId, registerRequests, signRequests, function(registerResponse) {
+    var form, reg;
+
+    switch (registerResponse.errorCode) {
+      case undefined:
+        break;
+      case 4:
+        return alert("You've already registered that device!");
+      case 5:
+        return do_register();
+      default:
+        return alert("Registration error: " + registerResponse.errorCode);
+    }
+
+    form = document.forms[0];
+    response = document.querySelector('[name=response]');
+
+    response.value = JSON.stringify(registerResponse);
+
+    form.submit();
+  });
+}
+
+do_register();
+</script>
