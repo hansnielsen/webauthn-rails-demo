@@ -48,9 +48,43 @@ class TwoFactorController < ApplicationController
   end
 
   def sign
+    key_handles = Registration.all.map(&:key_handle)
+    if key_handles.empty?
+      flash[:error] = "No keys registered yet, can't authenticate"
+      redirect_to action: "index"
+      return
+    end
+
+    # Generate SignRequests
+    @app_id = u2f.app_id
+    @sign_requests = u2f.authentication_requests(key_handles)
+    @challenge = u2f.challenge
+
+    # Store challenge. We need it for the verification step
+    session[:challenge] = @challenge
   end
 
   def validate
+    response = U2F::SignResponse.load_from_json(params[:response])
+
+    registration = Registration.find_by_key_handle(response.key_handle)
+
+    begin
+      u2f.authenticate!(session[:challenge], response,
+			Base64.decode64(registration.public_key),
+			registration.counter)
+    rescue U2F::Error => e
+      flash[:error] = "Unable to authenticate: <%= e.class.name %>"
+      redirect_to action: "new"
+      return
+    ensure
+      session.delete(:challenge)
+    end
+
+    registration.update(counter: response.counter)
+
+    flash[:success] = "Validated response from key #{registration.id}"
+    redirect_to action: "index"
   end
 
   private
