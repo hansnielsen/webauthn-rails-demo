@@ -1,2 +1,35 @@
-<h1>TwoFactor#sign</h1>
-<p>Find me in app/views/two_factor/sign.html.erb</p>
+<h2>Authenticate with your security key</h2>
+<p>Insert or tap your security key now!</p>
+<%= form_tag(controller: "two_factor", action: "validate") do %>
+  <%= hidden_field_tag("response") %>
+<% end %>
+<script>
+// render requests from server into Javascript format
+var signRequests = <%= @sign_requests.to_json.html_safe %>;
+var challenge = <%= @challenge.to_json.html_safe %>;
+var appId = <%= @app_id.to_json.html_safe %>;
+
+function do_sign() {
+  u2f.sign(appId, challenge, signRequests, function(signResponse) {
+    var form, reg;
+
+    switch (signResponse.errorCode) {
+      case undefined:
+        break;
+      case 5:
+        return do_sign();
+      default:
+        return alert("Authentication error: " + signResponse.errorCode);
+    }
+
+    form = document.forms[0];
+    response = document.querySelector('[name=response]');
+
+    response.value = JSON.stringify(signResponse);
+
+    form.submit();
+  });
+}
+
+do_sign();
+</script>
