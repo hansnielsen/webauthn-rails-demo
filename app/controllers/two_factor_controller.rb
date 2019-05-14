@@ -55,33 +55,49 @@ class TwoFactorController < ApplicationController
       return
     end
 
-    # Generate SignRequests
-    @app_id = u2f.app_id
-    @sign_requests = u2f.authentication_requests(key_handles)
-    @challenge = u2f.challenge
+    # Generate WebAuthn assertion request
+    req = WebAuthn.credential_request_options
+    req[:challenge] = Base64.urlsafe_encode64(req[:challenge])
+    req[:allowCredentials] = key_handles.map do |kh|
+      { id: kh, type: "public-key" }
+    end
+    # Needed for U2F compatibility
+    req[:extensions] = {appid: Rails.configuration.app_id}
+    @credential_request_options = req
 
     # Store challenge. We need it for the verification step
-    session[:challenge] = @challenge
+    session[:challenge] = req[:challenge]
   end
 
   def validate
-    response = U2F::SignResponse.load_from_json(params[:response])
+    response = JSON.parse(params[:response])
+    credential = WebAuthn::Credential.from_get(response)
+    registration = Registration.find_by_key_handle(credential.id)
 
-    registration = Registration.find_by_key_handle(response.key_handle)
-
-    begin
-      u2f.authenticate!(session[:challenge], response,
-			Base64.decode64(registration.public_key),
-			registration.counter)
-    rescue U2F::Error => e
-      flash[:error] = "Unable to authenticate: <%= e.class.name %>"
-      redirect_to action: "new"
+    if registration.nil?
+      flash[:error] = "Key not registered or invalid key"
+      redirect_to action: "index"
       return
-    ensure
-      session.delete(:challenge)
     end
 
-    registration.update(counter: response.counter)
+    challenge = session.delete(:challenge)
+    begin
+      credential.verify(
+        challenge,
+        sign_count: registration.counter,
+        public_key: registration.public_key,
+      )
+
+      registration.update(counter: credential.sign_count)
+    rescue WebAuthn::SignCountVerificationError => e
+      flash[:error] = "Credential replay detected!"
+      redirect_to action: "index"
+      return
+    rescue WebAuthn::Error => e
+      flash[:error] = "Unable to authenticate: #{e.class.name}"
+      redirect_to action: "index"
+      return
+    end
 
     flash[:success] = "Validated response from key #{registration.id}"
     redirect_to action: "index"
