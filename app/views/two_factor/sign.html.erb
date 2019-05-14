@@ -5,22 +5,24 @@
 <% end %>
 <script>
 // render requests from server into Javascript format
-var signRequests = <%= @sign_requests.to_json.html_safe %>;
-var challenge = <%= @challenge.to_json.html_safe %>;
-var appId = <%= @app_id.to_json.html_safe %>;
+var req = <%= @credential_request_options.to_json.html_safe %>;
 
 function do_sign() {
-  u2f.sign(appId, challenge, signRequests, function(signResponse) {
-    var form, reg;
+  req.challenge = str2ab(req.challenge);
+  for (var i = 0; i < req.allowCredentials.length; i++) {
+    req.allowCredentials[i].id = str2ab(req.allowCredentials[i].id);
+  }
 
-    switch (signResponse.errorCode) {
-      case undefined:
-        break;
-      case 5:
-        return do_sign();
-      default:
-        return alert("Authentication error: " + signResponse.errorCode);
-    }
+  navigator.credentials.get({
+    publicKey: req
+  }).then((credential) => {
+    var r = credential.response;
+    var signResponse = {
+      id: ab2str(credential.rawId),
+      clientDataJSON: ab2str(r.clientDataJSON),
+      signature: ab2str(r.signature),
+      authenticatorData: ab2str(r.authenticatorData)
+    };
 
     form = document.forms[0];
     response = document.querySelector('[name=response]');
@@ -28,6 +30,8 @@ function do_sign() {
     response.value = JSON.stringify(signResponse);
 
     form.submit();
+  }, (reason) => {
+    return alert("Authentication error: " + reason);
   });
 }
 

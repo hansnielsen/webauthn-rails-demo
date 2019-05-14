@@ -1,5 +1,5 @@
 <h2>Security Keys</h2>
-<%= link_to "Register a new key (U2F)", action: "new" %> | <%= link_to "Authenticate with an existing key (U2F)", action: "sign" %>
+<%= link_to "Register a new key (U2F)", action: "new" %> | <%= link_to "Authenticate with an existing key (WebAuthn)", action: "sign" %>
 <% if @regs.count > 0 %>
   <ul>
   <% @regs.each do |r| %>

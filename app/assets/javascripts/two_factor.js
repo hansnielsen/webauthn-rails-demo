@@ -2,3 +2,4 @@
 // All this logic will automatically be available in application.js.
 
 //= require u2f-api.js
+//= require base64.js

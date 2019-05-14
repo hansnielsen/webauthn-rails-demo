@@ -55,33 +55,63 @@ class TwoFactorController < ApplicationController
       return
     end
 
-    # Generate SignRequests
-    @app_id = u2f.app_id
-    @sign_requests = u2f.authentication_requests(key_handles)
-    @challenge = u2f.challenge
+    # Generate WebAuthn assertion request
+    req = WebAuthn.credential_request_options
+    req[:challenge] = Base64.urlsafe_encode64(req[:challenge])
+    req[:allowCredentials] = key_handles.map do |kh|
+      { id: kh, type: "public-key" }
+    end
+    # Needed for U2F compatibility
+    req[:extensions] = {appid: Rails.configuration.app_id}
+    @credential_request_options = req
 
     # Store challenge. We need it for the verification step
-    session[:challenge] = @challenge
+    session[:challenge] = req[:challenge]
   end
 
   def validate
-    response = U2F::SignResponse.load_from_json(params[:response])
+    response = JSON.parse(params[:response])
+    registration = Registration.find_by_key_handle(response.fetch("id"))
 
-    registration = Registration.find_by_key_handle(response.key_handle)
-
-    begin
-      u2f.authenticate!(session[:challenge], response,
-			Base64.decode64(registration.public_key),
-			registration.counter)
-    rescue U2F::Error => e
-      flash[:error] = "Unable to authenticate: <%= e.class.name %>"
-      redirect_to action: "new"
+    if registration.nil?
+      flash[:error] = "Key not registered or invalid key"
+      redirect_to action: "index"
       return
-    ensure
-      session.delete(:challenge)
     end
 
-    registration.update(counter: response.counter)
+    key_handle = Base64.urlsafe_decode64(registration.key_handle)
+
+    auth_response = WebAuthn::AuthenticatorAssertionResponse.new(
+      credential_id: key_handle,
+      authenticator_data: Base64.urlsafe_decode64(response.fetch("authenticatorData")),
+      client_data_json: Base64.urlsafe_decode64(response.fetch("clientDataJSON")),
+      signature: Base64.urlsafe_decode64(response.fetch("signature")),
+    )
+
+    credential = {
+      type: "public-key",
+      id: key_handle,
+      # For whatever reason, this key is non-URL-safe Base64
+      public_key: Base64.decode64(registration.public_key),
+    }
+
+    app_id = Rails.configuration.app_id
+    challenge = Base64.urlsafe_decode64(session.delete(:challenge))
+    begin
+      auth_response.verify(challenge, request.base_url, allowed_credentials: [credential], rp_id: app_id)
+    rescue WebAuthn::VerificationError => e
+      flash[:error] = "Unable to authenticate: #{e.class.name}"
+      redirect_to action: "index"
+      return
+    end
+
+    counter = auth_response.authenticator_data.sign_count
+    if registration.counter >= counter
+      flash[:error] = "Credential replay detected!"
+      redirect_to action: "index"
+      return
+    end
+    registration.update(counter: counter)
 
     flash[:success] = "Validated response from key #{registration.id}"
     redirect_to action: "index"
