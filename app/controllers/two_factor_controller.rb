@@ -39,9 +39,11 @@ class TwoFactorController < ApplicationController
       session.delete(:challenges)
     end
 
+    public_key = Base64.urlsafe_encode64(Base64.decode64(reg.public_key))
+
     # save a reference to your database
     name = "U2F key handle #{reg.key_handle[0...20]}..."
-    reg = Registration.create!(key_handle: reg.key_handle, public_key: reg.public_key, counter: reg.counter, name: name)
+    reg = Registration.create!(key_handle: reg.key_handle, public_key: reg.public_key, counter: reg.counter, name: name, format: :u2f)
 
     flash[:success] = "Successfully registered new key #{reg.id}"
     redirect_to action: "index"
@@ -91,8 +93,7 @@ class TwoFactorController < ApplicationController
     credential = {
       type: "public-key",
       id: key_handle,
-      # For whatever reason, this key is non-URL-safe Base64
-      public_key: Base64.decode64(registration.public_key),
+      public_key: Base64.urlsafe_decode64(registration.public_key),
     }
 
     app_id = Rails.configuration.app_id
