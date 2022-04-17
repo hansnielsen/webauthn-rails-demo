@@ -2,6 +2,8 @@
 
 This demo is part of a [blog post](https://www.stackallocated.com/blog/2019/u2f-to-webauthn/) that describes how to migrate an application from Rails to WebAuthn.
 
+This repository has been archived as it is unlikely to ever need changes again. Chrome has successfully disabled support for the classic FIDO U2F API ("Cryptotoken") as of February 2022.
+
 While you'd be best served reading the blog post, the tl;dr is:
 
 1. Try out the app when it only supports U2F (see the tag `u2f-only`)
